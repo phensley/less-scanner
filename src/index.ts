@@ -450,8 +450,14 @@ const main = () => {
     }
     if (s.isDirectory()) {
       const names = fs.readdirSync(arg);
+      console.log(`[info] scanning directory ${arg}`);
+      let n = 0;
       for (const name of names) {
         scanner.scan(filepath.join(arg, name));
+        n++;
+        if (n % 100 == 0) {
+          console.log(`[info] processed ${n} of ${names.length}`);
+        }
       }
     }
   }
