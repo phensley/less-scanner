@@ -1,0 +1,21 @@
+#!/usr/bin/env python3
+
+import json, sys
+
+args = sys.argv[1:]
+if len(args) < 1:
+    sys.exit()
+
+num = 0
+arg = args[0]
+if len(args) == 2:
+    num = int(args[1])
+
+d = json.load(open(arg))
+for k, c in d:
+    if num and c < num:
+        break;
+    print(str(c).rjust(10), k)
+
+
+
