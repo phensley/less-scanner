@@ -53,35 +53,53 @@ const compiler = new LessCompiler({ indentSize: 2, compress: true });
 const load = (path: string) =>
   fs.readFileSync(path, { encoding: "utf-8" }).toString();
 
+type Counter = { [x: string]: number };
+
+const sortKeys = (c: Counter) => {
+  const r = [];
+  const keys = Object.keys(c);
+  keys.sort((a, b) => (c[a] < c[b] ? 1 : c[a] == c[b] ? 0 : -1));
+  for (const key of keys) {
+    r.push([key, c[key]]);
+  }
+  return r;
+};
+
 class Scanner {
-  readonly keywords: Set<string> = new Set();
-  readonly directives: Set<string> = new Set();
-  readonly properties: Set<string> = new Set();
-  readonly functions: Set<string> = new Set();
-  readonly variables: Set<string> = new Set();
-  readonly elements: Set<string> = new Set();
-  readonly dimensions: Set<string> = new Set();
+  readonly keywords: Counter = {};
+  readonly directives: Counter = {};
+  readonly properties: Counter = {};
+  readonly functions: Counter = {};
+  readonly variables: Counter = {};
+  readonly elements: Counter = {};
+  readonly dimensions: Counter = {};
 
   scan(path: string) {
     const source = load(path);
-    const tree = compiler.parse(source);
+    let tree: Node | undefined;
+    try {
+      tree = compiler.parse(source);
+    } catch (e) {
+      console.log(`[warning] failed to parse ${path}: ${e}`);
+      return;
+    }
     if (!tree) {
       console.log(`[warning] failed to parse ${path}`);
-    } else {
-      console.log(`[info] scanning ${path}`);
-      this.scanRules((tree as Stylesheet).block);
+      return;
     }
+    console.log(`[info] scanning ${path}`);
+    this.scanRules((tree as Stylesheet).block);
   }
 
   report(): any {
     return {
-      keywords: sortSet(this.keywords),
-      directives: sortSet(this.directives),
-      properties: sortSet(this.properties),
-      functions: sortSet(this.functions),
-      variables: sortSet(this.variables),
-      elements: sortSet(this.elements),
-      dimensions: sortSet(this.dimensions),
+      keywords: sortKeys(this.keywords),
+      directives: sortKeys(this.directives),
+      properties: sortKeys(this.properties),
+      functions: sortKeys(this.functions),
+      variables: sortKeys(this.variables),
+      elements: sortKeys(this.elements),
+      dimensions: sortKeys(this.dimensions),
     };
   }
 
@@ -101,7 +119,8 @@ class Scanner {
 
         case NodeType.BLOCK_DIRECTIVE: {
           const b = n as BlockDirective;
-          this.directives.add(b.name);
+          this.dir(b.name);
+          // this.directives.add(b.name);
           this.scanRules(b.block);
           break;
         }
@@ -137,6 +156,39 @@ class Scanner {
     }
   }
 
+  incr(c: Counter, s: string) {
+    let n = c[s] || 0;
+    c[s] = n + 1;
+  }
+
+  dir(s: string) {
+    this.incr(this.directives, s);
+  }
+
+  dim(s: string) {
+    this.incr(this.dimensions, s);
+  }
+
+  elem(s: string) {
+    this.incr(this.elements, s);
+  }
+
+  func(s: string) {
+    this.incr(this.functions, s);
+  }
+
+  kwd(s: string) {
+    this.incr(this.keywords, s);
+  }
+
+  prop(s: string) {
+    this.incr(this.properties, s);
+  }
+
+  vars(s: string) {
+    this.incr(this.variables, s);
+  }
+
   scanNode(n: Node) {
     if (!n) {
       return;
@@ -157,7 +209,7 @@ class Scanner {
       case NodeType.COLOR: {
         if (n instanceof KeywordColor) {
           const k = n as KeywordColor;
-          this.keywords.add(k.keyword);
+          this.kwd(k.keyword);
         }
         break;
       }
@@ -177,7 +229,7 @@ class Scanner {
 
       case NodeType.DIMENSION: {
         const d = n as Dimension;
-        this.dimensions.add(d.value + (d.unit ? d.unit : ""));
+        this.dim(d.value + (d.unit ? d.unit : ""));
         break;
       }
 
@@ -200,7 +252,7 @@ class Scanner {
         }
         if (n instanceof TextElement) {
           const t = n as TextElement;
-          this.elements.add(t.name);
+          this.elem(t.name);
         }
       }
 
@@ -224,13 +276,13 @@ class Scanner {
 
       case NodeType.FALSE: {
         const f = n as False;
-        this.keywords.add(f.value);
+        this.kwd(f.value);
         break;
       }
 
       case NodeType.FEATURE: {
         const f = n as Feature;
-        this.properties.add((f.property as Property).name);
+        this.prop((f.property as Property).name);
         this.scanNode(f.value);
         break;
       }
@@ -245,7 +297,7 @@ class Scanner {
 
       case NodeType.FUNCTION_CALL: {
         const f = n as FunctionCall;
-        this.functions.add(f.name);
+        this.func(f.name);
         for (const a of f.args) {
           this.scanNode(a);
         }
@@ -270,7 +322,7 @@ class Scanner {
       }
 
       case NodeType.KEYWORD:
-        this.keywords.add((n as Keyword).value);
+        this.kwd((n as Keyword).value);
         break;
 
       case NodeType.MIXIN_ARGS: {
@@ -318,7 +370,7 @@ class Scanner {
       }
 
       case NodeType.PROPERTY:
-        this.properties.add((n as Property).name);
+        this.prop((n as Property).name);
         break;
 
       case NodeType.QUOTED:
@@ -358,7 +410,7 @@ class Scanner {
 
       case NodeType.TRUE: {
         const t = n as True;
-        this.keywords.add(t.value);
+        this.kwd(t.value);
         break;
       }
 
@@ -368,7 +420,7 @@ class Scanner {
 
       case NodeType.VARIABLE: {
         const v = n as Variable;
-        this.variables.add(v.name);
+        this.vars(v.name);
         break;
       }
     }
@@ -406,8 +458,7 @@ const main = () => {
 
   const r = scanner.report();
   for (const key of Object.keys(r)) {
-    const v = r[key].join("\n");
-    fs.writeFileSync(key + ".txt", v);
+    fs.writeFileSync(key + ".json", JSON.stringify(r[key]));
   }
 };
 
