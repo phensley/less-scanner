@@ -4,10 +4,8 @@ import {
   Argument,
   Assignment,
   AttributeElement,
-  BaseColor,
   Block,
   BlockDirective,
-  BlockNode,
   Condition,
   Definition,
   Dimension,
@@ -35,7 +33,7 @@ import {
   Parameter,
   Paren,
   Property,
-  Ratio,
+  RGBColor,
   Rule,
   Ruleset,
   Selector,
@@ -48,7 +46,11 @@ import {
   Variable,
 } from "@squarespace/less-ts";
 
-const compiler = new LessCompiler({ indentSize: 2, compress: true });
+const compiler = new LessCompiler({
+  indentSize: 2,
+  compress: true,
+  fastcolor: true,
+});
 
 const load = (path: string) =>
   fs.readFileSync(path, { encoding: "utf-8" }).toString();
@@ -66,13 +68,14 @@ const sortKeys = (c: Counter) => {
 };
 
 class Scanner {
-  readonly keywords: Counter = {};
-  readonly directives: Counter = {};
-  readonly properties: Counter = {};
-  readonly functions: Counter = {};
-  readonly variables: Counter = {};
-  readonly elements: Counter = {};
+  readonly colors: Counter = {};
   readonly dimensions: Counter = {};
+  readonly directives: Counter = {};
+  readonly elements: Counter = {};
+  readonly functions: Counter = {};
+  readonly keywords: Counter = {};
+  readonly properties: Counter = {};
+  readonly variables: Counter = {};
 
   scan(path: string) {
     const source = load(path);
@@ -93,13 +96,14 @@ class Scanner {
 
   report(): any {
     return {
-      keywords: sortKeys(this.keywords),
+      colors: sortKeys(this.colors),
       directives: sortKeys(this.directives),
-      properties: sortKeys(this.properties),
-      functions: sortKeys(this.functions),
-      variables: sortKeys(this.variables),
-      elements: sortKeys(this.elements),
       dimensions: sortKeys(this.dimensions),
+      elements: sortKeys(this.elements),
+      functions: sortKeys(this.functions),
+      keywords: sortKeys(this.keywords),
+      properties: sortKeys(this.properties),
+      variables: sortKeys(this.variables),
     };
   }
 
@@ -161,6 +165,10 @@ class Scanner {
     c[s] = n + 1;
   }
 
+  color(s: string) {
+    this.incr(this.colors, s);
+  }
+
   dir(s: string) {
     this.incr(this.directives, s);
   }
@@ -210,6 +218,11 @@ class Scanner {
         if (n instanceof KeywordColor) {
           const k = n as KeywordColor;
           this.kwd(k.keyword);
+        } else if (n instanceof RGBColor) {
+          const c = n as RGBColor;
+          const b = compiler.context().newBuffer();
+          c.repr(b);
+          this.color(b.toString());
         }
         break;
       }
@@ -426,12 +439,6 @@ class Scanner {
     }
   }
 }
-
-const sortSet = (set: Set<string>): string[] => {
-  const res: string[] = [];
-  set.forEach((v) => res.push(v));
-  return res.sort();
-};
 
 const main = () => {
   const scanner = new Scanner();
