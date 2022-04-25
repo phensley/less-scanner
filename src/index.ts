@@ -34,6 +34,7 @@ import {
   Parameter,
   Paren,
   Property,
+  Ratio,
   RGBColor,
   Rule,
   Ruleset,
@@ -77,6 +78,7 @@ class Scanner {
   readonly functions: Counter = {};
   readonly keywords: Counter = {};
   readonly properties: Counter = {};
+  readonly _ratio: Counter = {};
   readonly variables: Counter = {};
   readonly syntax: Counter = {};
 
@@ -106,6 +108,7 @@ class Scanner {
       functions: sortKeys(this.functions),
       keywords: sortKeys(this.keywords),
       properties: sortKeys(this.properties),
+      ratio: sortKeys(this._ratio),
       variables: sortKeys(this.variables),
       syntax: sortKeys(this.syntax),
     };
@@ -204,6 +207,10 @@ class Scanner {
 
   prop(s: string) {
     this.incr(this.properties, s);
+  }
+
+  ratio(s: string) {
+    this.incr(this._ratio, s)
   }
 
   vars(s: string) {
@@ -475,10 +482,13 @@ class Scanner {
         // ignored
         this.instr("quoted");
         break;
-      case NodeType.RATIO:
-        // ignored
+
+      case NodeType.RATIO: {
         this.instr("ratio");
+        const r = n as Ratio;
+        this.ratio(r.value);
         break;
+      }
 
       case NodeType.RULE: {
         this.instr("rule");
