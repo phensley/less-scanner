@@ -206,6 +206,10 @@ export class Scanner {
         this.incr(this.counters.keywords, s);
     }
 
+    kwdcolor(s: string) {
+        this.incr(this.counters.color_keywords, s);
+    }
+
     prop(s: string) {
         this.incr(this.counters.properties, s);
     }
@@ -245,7 +249,7 @@ export class Scanner {
                 if (n instanceof KeywordColor) {
                     this.instr("keyword_color");
                     const k = n as KeywordColor;
-                    this.kwd(k.keyword);
+                    this.kwdcolor(k.keyword);
                 } else if (n instanceof RGBColor) {
                     this.instr("rgb_color");
                     const c = n as RGBColor;
